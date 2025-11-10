@@ -13,13 +13,13 @@ class AuthController extends Controller
 public function register(Request $request)
     {
         $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
+            'username' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users'],
             'password' => ['required', 'string', 'min:8'],
         ]);
 
         $user = User::create([
-            'name' => $validated['name'],
+            'username' => $validated['username'],
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
         ]);
@@ -34,8 +34,9 @@ public function register(Request $request)
             'password' => ['required'],
         ]);
 
-        if (auth()->attempt($credentials)) {
-            $user = auth()->user();
+        $user = User::where('email', $credentials['email'])->first();
+
+        if ( $user && Hash::check($credentials['password'], $user->password) ) {
             $access_token = $user->createToken('api-token', ['*'], now()->addDays(14));
             $refresh_token = $user->createToken('refresh-token', ['*'], now()->addDays(30));
 
