@@ -10,11 +10,13 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use Silber\Bouncer\Database\HasRolesAndAbilities;
+
 
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable, HasApiTokens, SoftDeletes;
+    use HasFactory, Notifiable, HasApiTokens, HasRolesAndAbilities, SoftDeletes;
 
     /**
      * The attributes that are mass assignable.
@@ -33,11 +35,9 @@ class User extends Authenticatable
      *
      * @var list<string>
      */
-    protected $hidden = [
-        'password',
-        'remember_token',
-    ];
+ protected $hidden = ['password', 'remember_token', 'roles', 'abilities'];
 
+protected $with =[];
     /**
      * Get the attributes that should be cast.
      *
@@ -75,4 +75,22 @@ class User extends Authenticatable
     {
         return $this->hasMany(Enquiry::class);
     }
+    public function roles()
+{
+    return $this->morphToMany(
+        \Silber\Bouncer\Database\Role::class,
+        'entity',
+        'assigned_roles'
+    );
+}
+
+public function abilities()
+{
+    return $this->morphToMany(
+        \Silber\Bouncer\Database\Ability::class,
+        'entity',
+        'permissions'
+    );
+}
+
 }

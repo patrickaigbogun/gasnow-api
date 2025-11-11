@@ -29,7 +29,10 @@ return [
     |
     */
 
-    'guard' => ['sanctum'],
+    // For token-only APIs, leave this empty so Sanctum authenticates using
+    // the bearer token without attempting a stateful guard first.
+    // If you have a session-based SPA using the "web" guard, set ['web'].
+    'guard' => [],
 
     /*
     |--------------------------------------------------------------------------

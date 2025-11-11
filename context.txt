@@ -1,0 +1,179 @@
+{
+	"apiContract": {
+		"name": "AuthController API",
+		"version": "1.0.0",
+		"basePath": "/api",
+		"contentType": "application/json",
+		"authorization": {
+			"type": "bearer",
+			"header": "Authorization",
+			"format": "Bearer <token>",
+			"notes": "Uses Laravel Sanctum personal access tokens. Access control enforced via Bouncer roles/abilities."
+		},
+		"models": {
+			"User": {
+				"description": "Serialized user object returned by endpoints.",
+				"fields": {
+					"id": "integer",
+					"username": "string",
+					"email": "string",
+					"active": "boolean",
+					"email_verified_at": "string|null (ISO 8601)",
+					"created_at": "string (ISO 8601)",
+					"updated_at": "string (ISO 8601)"
+				},
+				"hidden": ["password", "remember_token"]
+			},
+			"Tokens": {
+				"description": "Pair of tokens used by the client.",
+				"fields": {
+					"access_token": "string",
+					"refresh_token": "string"
+				},
+				"meta": {
+					"access_token_ttl_days": 14,
+					"refresh_token_ttl_days": 30
+				}
+			},
+			"ValidationError": {
+				"description": "Standard Laravel validation error response.",
+				"fields": {
+					"message": "string",
+					"errors": {
+						"<field>": ["string"]
+					}
+				}
+			},
+			"UnauthorizedError": {
+				"fields": {
+					"message": "string"
+				}
+			}
+		},
+		"endpoints": [
+			{
+				"method": "POST",
+				"path": "/register",
+				"summary": "Create a new user and assign default 'customer' role.",
+				"request": {
+					"body": {
+						"username": {"type": "string", "required": true, "max": 255},
+						"email": {"type": "string", "format": "email", "required": true, "max": 255, "unique": "users,email"},
+						"password": {"type": "string", "required": true, "min": 8}
+					}
+				},
+				"responses": {
+					"201": {
+						"body": {
+							"user": {"$ref": "User"}
+						}
+					},
+					"422": {"$ref": "ValidationError"}
+				}
+			},
+			{
+				"method": "POST",
+				"path": "/login",
+				"summary": "Authenticate credentials and issue tokens.",
+				"request": {
+					"body": {
+						"email": {"type": "string", "format": "email", "required": true},
+						"password": {"type": "string", "required": true}
+					}
+				},
+				"responses": {
+					"200": {
+						"body": {
+							"user": {"$ref": "User"},
+							"roles": {"type": "array", "items": {"type": "string"}},
+							"permissions": {"type": "object"},
+							"access_token": {"type": "string"},
+							"refresh_token": {"type": "string"}
+						}
+					},
+					"422": {"$ref": "ValidationError"}
+				}
+			},
+			{
+				"method": "POST",
+				"path": "/refresh",
+				"summary": "Exchange a valid refresh token for new tokens.",
+				"auth": {"bearer": "refresh_token"},
+				"responses": {
+					"200": {
+						"body": {"$ref": "Tokens"}
+					},
+					"400": {"body": {"message": "Missing token"}},
+					"401": {"body": {"message": "Invalid refresh token"}}
+				}
+			},
+			{
+				"method": "GET",
+				"path": "/me",
+				"summary": "Return current authenticated user, roles and permissions.",
+				"auth": {"bearer": "access_token"},
+				"responses": {
+					"200": {
+						"body": {
+							"user": {"$ref": "User"},
+							"roles": {"type": "array", "items": {"type": "string"}},
+							"permissions": {"type": "object"}
+						}
+					},
+					"401": {"$ref": "UnauthorizedError"}
+				}
+			},
+			{
+				"method": "POST",
+				"path": "/logout",
+				"summary": "Revoke the current access token.",
+				"auth": {"bearer": "access_token"},
+				"responses": {
+					"200": {
+						"body": {"message": "Logged out successfully"}
+					},
+					"401": {"$ref": "UnauthorizedError"}
+				}
+			}
+		],
+		"samples": {
+			"register": {
+				"request": {
+					"username": "jdoe",
+					"email": "jdoe@example.com",
+					"password": "secretPass123"
+				},
+				"response": {
+					"status": 201,
+					"body": {
+						"user": {
+							"id": 1,
+							"username": "jdoe",
+							"email": "jdoe@example.com",
+							"active": true,
+							"email_verified_at": null,
+							"created_at": "2025-11-11T12:00:00Z",
+							"updated_at": "2025-11-11T12:00:00Z"
+						}
+					}
+				}
+			},
+			"login": {
+				"request": {
+					"email": "jdoe@example.com",
+					"password": "secretPass123"
+				},
+				"response": {
+					"status": 200,
+					"body": {
+						"user": {"id": 1, "username": "jdoe", "email": "jdoe@example.com", "active": true, "email_verified_at": null, "created_at": "2025-11-11T12:00:00Z", "updated_at": "2025-11-11T12:00:00Z"},
+						"roles": ["customer"],
+						"permissions": {},
+						"access_token": "<access_token>",
+						"refresh_token": "<refresh_token>"
+					}
+				}
+			}
+		}
+	}
+}
