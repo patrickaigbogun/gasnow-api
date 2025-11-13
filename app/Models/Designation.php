@@ -12,7 +12,7 @@ class Designation extends Model
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'title',
+        'name',
     ];
 
     public function profiles(): HasMany

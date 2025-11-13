@@ -119,7 +119,21 @@ class AuthController extends Controller
      */
     public function me(Request $request): JsonResponse
     {
+        $token = $request->bearerToken();
+        if (! $token) {
+            return response()->json(['message' => 'Missing token'], 400);
+        }
+        $personalToken = PersonalAccessToken::findToken($token);
+        if (! $personalToken) {
+            return response()->json(['message' => 'Invalid token'], 401);
+        }
+        $user = $personalToken->tokenable;
+
         $context = SessionContext::build($user);
+
+        $accessToken = $user->createToken('access-token', ['*'], now()->addDays(14));
+        $refreshToken = $user->createToken('refresh-token', ['*'], now()->addDays(30));
+
 
     return response()->json(array_merge($context, [
         'access_token' => $accessToken->plainTextToken,
