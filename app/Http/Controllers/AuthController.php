@@ -9,6 +9,7 @@ use Illuminate\Validation\ValidationException;
 use App\Models\User;
 use App\Support\PermissionScopeMapper;
 use Laravel\Sanctum\PersonalAccessToken;
+use App\Services\SessionContext;
 use Silber\Bouncer\BouncerFacade as Bouncer;
 
 /**
@@ -71,17 +72,12 @@ class AuthController extends Controller
         $accessToken = $user->createToken('access-token', ['*'], now()->addDays(14));
         $refreshToken = $user->createToken('refresh-token', ['*'], now()->addDays(30));
 
-        $roles = $user->getRoles();
-        $abilities = $user->getAbilities()->pluck('name')->toArray();
-        $permissions = PermissionScopeMapper::map($abilities);
+       $context = SessionContext::build($user);
 
-        return response()->json([
-            'user' => $user->only(['id', 'username', 'email']),
-            'roles' => $roles,
-            'permissions' => $permissions,
-            'access_token' => $accessToken->plainTextToken,
-            'refresh_token' => $refreshToken->plainTextToken,
-        ]);
+    return response()->json(array_merge($context, [
+        'access_token' => $accessToken->plainTextToken,
+        'refresh_token' => $refreshToken->plainTextToken,
+    ]));
     }
 
     /**
@@ -123,16 +119,12 @@ class AuthController extends Controller
      */
     public function me(Request $request): JsonResponse
     {
-        $user = $request->user();
-        $roles = $user->getRoles();
-        $abilities = $user->getAbilities()->pluck('name')->toArray();
-        $permissions = PermissionScopeMapper::map($abilities);
+        $context = SessionContext::build($user);
 
-        return response()->json([
-            'user' => $user->only(['id', 'username', 'email']),
-            'roles' => $roles,
-            'permissions' => $permissions,
-        ]);
+    return response()->json(array_merge($context, [
+        'access_token' => $accessToken->plainTextToken,
+        'refresh_token' => $refreshToken->plainTextToken,
+    ]));
     }
 
     /**
