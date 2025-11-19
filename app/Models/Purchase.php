@@ -13,17 +13,32 @@ class Purchase extends Model
 
     protected $fillable = [
         'user_id',
-        'amount',
-        'reference',
-        'status',
+        'cylinder_size_id',
+        'purchase_kg_id',
+        'invoice_no',
+        'delivery_address',
+        'delivery_time_id',
     ];
 
-    protected $casts = [
-        'amount' => 'decimal:2',
-    ];
+    protected $casts = [];
 
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function cylinderSize(): BelongsTo
+    {
+        return $this->belongsTo(CylinderSize::class);
+    }
+
+    public function purchaseKg(): BelongsTo
+    {
+        return $this->belongsTo(PurchaseKg::class);
+    }
+
+    public function deliveryTime(): BelongsTo
+    {
+        return $this->belongsTo(DeliveryTime::class);
     }
 }
