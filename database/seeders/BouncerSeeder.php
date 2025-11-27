@@ -18,7 +18,7 @@ class BouncerSeeder extends Seeder
             'system-admin',
             'accounts',
             'customer-service',
-            'backend-admin',
+            'setup-admin',
             'audit',
         ];
 
@@ -57,12 +57,12 @@ class BouncerSeeder extends Seeder
         Bouncer::allow('system-admin')->everything();
         Bouncer::allow('accounts')->to(['read-purchases', 'read-billing', 'update-passwords']);
         Bouncer::allow('customer-service')->to(['read-purchases', 'update-purchases', 'delete-purchases', 'read-profiles', 'read-passwords']);
-        Bouncer::allow('backend-admin')->to([
+        Bouncer::allow('setup-admin')->to([
             'create-setup-admin', 'read-setup-admin', 'update-setup-admin', 'delete-setup-admin',
             'update-passwords', 'create-setup-system', 'read-setup-system', 'update-setup-system', 'delete-setup-system'
         ]);
         Bouncer::allow('audit')->to(['read-audit', 'update-password']);
 
-        $this->command->info('✅ Bouncer roles and abilities seeded successfully.');
+        $this->command->info('Bouncer roles and abilities seeded successfully.');
     }
 }

@@ -11,6 +11,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Silber\Bouncer\Database\HasRolesAndAbilities;
+use Silber\Bouncer\Database\Role;
 
 
 class User extends Authenticatable
@@ -28,6 +29,7 @@ class User extends Authenticatable
         'username',
         'password',
         'active',
+        'primary_role_id',
     ];
 
     /**
@@ -74,6 +76,11 @@ protected $with =[];
     public function enquiries(): HasMany
     {
         return $this->hasMany(Enquiry::class);
+    }
+
+    public function primaryRole()
+    {
+        return $this->belongsTo(Role::class, 'primary_role_id');
     }
     public function roles()
 {

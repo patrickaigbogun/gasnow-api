@@ -11,7 +11,7 @@ class PermissionScopeMapper
         'audit' => ['read', 'update'],
         'password' => ['update'],
         'setup-admin' => ['create', 'read', 'update', 'delete'],
-        'setup-system' => ['create', 'read', 'update', 'delete'],
+        'system-admin' => ['create', 'read', 'update', 'delete'],
     ];
 
     public static function map(array $abilities): array

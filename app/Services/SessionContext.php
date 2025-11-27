@@ -3,23 +3,26 @@
 namespace App\Services;
 
 use App\Models\User;
+use Silber\Bouncer\BouncerFacade as Bouncer;
 use App\Support\PermissionScopeMapper;
 
 class SessionContext
 {
     public static function build(User $user): array
     {
-        // Get the roles assigned to the user
+        $user->loadMissing('primaryRole');
+
         $roles = $user->getRoles();
 
-        // Get all ability names (e.g., "create-purchase", "read-billing")
         $abilities = $user->getAbilities()->pluck('name')->toArray();
 
-        // Map abilities into a structured permission object
         $permissions = PermissionScopeMapper::map($abilities);
+
+        $primaryRoleName = $user->primaryRole?->name;
 
         return [
             'user' => $user->only(['id', 'username', 'email']),
+            'primary_role' => $primaryRoleName,
             'roles' => $roles,
             'permissions' => $permissions,
         ];

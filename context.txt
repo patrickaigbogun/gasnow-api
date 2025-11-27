@@ -1,179 +1,298 @@
 {
-	"apiContract": {
-		"name": "AuthController API",
-		"version": "1.0.0",
-		"basePath": "/api",
-		"contentType": "application/json",
-		"authorization": {
-			"type": "bearer",
-			"header": "Authorization",
-			"format": "Bearer <token>",
-			"notes": "Uses Laravel Sanctum personal access tokens. Access control enforced via Bouncer roles/abilities."
-		},
-		"models": {
-			"User": {
-				"description": "Serialized user object returned by endpoints.",
-				"fields": {
-					"id": "integer",
-					"username": "string",
-					"email": "string",
-					"active": "boolean",
-					"email_verified_at": "string|null (ISO 8601)",
-					"created_at": "string (ISO 8601)",
-					"updated_at": "string (ISO 8601)"
-				},
-				"hidden": ["password", "remember_token"]
-			},
-			"Tokens": {
-				"description": "Pair of tokens used by the client.",
-				"fields": {
-					"access_token": "string",
-					"refresh_token": "string"
-				},
-				"meta": {
-					"access_token_ttl_days": 14,
-					"refresh_token_ttl_days": 30
-				}
-			},
-			"ValidationError": {
-				"description": "Standard Laravel validation error response.",
-				"fields": {
-					"message": "string",
-					"errors": {
-						"<field>": ["string"]
-					}
-				}
-			},
-			"UnauthorizedError": {
-				"fields": {
-					"message": "string"
-				}
-			}
-		},
+	"apiContract": {		
 		"endpoints": [
 			{
-				"method": "POST",
-				"path": "/register",
-				"summary": "Create a new user and assign default 'customer' role.",
-				"request": {
-					"body": {
-						"username": {"type": "string", "required": true, "max": 255},
-						"email": {"type": "string", "format": "email", "required": true, "max": 255, "unique": "users,email"},
-						"password": {"type": "string", "required": true, "min": 8}
-					}
-				},
-				"responses": {
-					"201": {
-						"body": {
-							"user": {"$ref": "User"}
-						}
-					},
-					"422": {"$ref": "ValidationError"}
-				}
-			},
-			{
-				"method": "POST",
-				"path": "/login",
-				"summary": "Authenticate credentials and issue tokens.",
-				"request": {
-					"body": {
-						"email": {"type": "string", "format": "email", "required": true},
-						"password": {"type": "string", "required": true}
-					}
-				},
+				"method": "GET",
+				"path": "/purchases",
+				"summary": "List purchases for the authenticated user.",
+				"auth": {"bearer": "access_token"},
 				"responses": {
 					"200": {
-						"body": {
-							"user": {"$ref": "User"},
-							"roles": {"type": "array", "items": {"type": "string"}},
-							"permissions": {"type": "object"},
-							"access_token": {"type": "string"},
-							"refresh_token": {"type": "string"}
+						Backend Context (Session + Admin APIs)
+						======================================
+
+						This file documents what the frontend can expect from the
+						authentication/session context and the admin role/user management APIs.
+
+						--------------------------------------------------
+						1. Session Context (`/login`, `/me` via `SessionContext::build`)
+						--------------------------------------------------
+
+						After a successful login or `/api/me`, the backend builds a session
+						context with `App\Services\SessionContext::build($user)`.
+
+						Shape (merged with tokens in `AuthController`):
+
+						```json
+						{
+							"user": {
+								"id": 1,
+								"username": "admin",
+								"email": "admin@example.com"
+							},
+							"primary_role": "system-admin",        // string | null
+							"roles": ["system-admin", "setup-admin"],
+							"permissions": {                         // result of PermissionScopeMapper
+								"purchases": {
+									"create": true,
+									"read": true,
+									"update": true,
+									"delete": false
+								}
+							},
+							"access_token": "...",                 // added in controller
+							"refresh_token": "..."                 // added in controller
 						}
-					},
-					"422": {"$ref": "ValidationError"}
-				}
-			},
-			{
-				"method": "POST",
-				"path": "/refresh",
-				"summary": "Exchange a valid refresh token for new tokens.",
-				"auth": {"bearer": "refresh_token"},
-				"responses": {
-					"200": {
-						"body": {"$ref": "Tokens"}
-					},
-					"400": {"body": {"message": "Missing token"}},
-					"401": {"body": {"message": "Invalid refresh token"}}
-				}
-			},
+						```
+
+						Notes:
+						- `primary_role` is taken from `user.primaryRole.name` if set,
+							otherwise the first role in `roles[]` or `null`.
+						- `roles` is an array of Bouncer role names.
+						- `permissions` is a structured object derived from ability names.
+
+						Frontend usage:
+						- Use `primary_role` to drive default routing/landing page.
+						- Use `roles` for multi-role UI logic if needed.
+						- Use `permissions` to enable/disable specific features and buttons.
+						- Store `access_token` for authenticated API calls, `refresh_token` for
+							refreshing.
+
+						--------------------------------------------------
+						2. Admin Role Management API
+						--------------------------------------------------
+
+						All endpoints below:
+						- Are under `/api/admin/*`.
+						- Require a valid Bearer token in `Authorization` header.
+						- The token must belong to a user with the `system-admin` role.
+
+						Common headers:
+
+						- `Authorization: Bearer <access_token>`
+						- `Accept: application/json`
+						- `Content-Type: application/json`
+
+						Error responses:
+						- `400 { "message": "Missing token" }` when no Bearer token is sent.
+						- `401 { "message": "Invalid token" }` when the token is invalid.
+						- `403` when the authenticated user is not `system-admin`.
+
+						2.1 List Roles
+						--------------
+						- **Method:** `GET`
+						- **URL:** `/api/admin/roles`
+						- **Description:** Returns all roles with their attached ability names.
+
+						Response 200:
+
+						```json
+						{
+							"data": [
+								{
+									"id": 1,
+									"name": "system-admin",
+									"title": "System Administrator",
+									"abilities": ["read-setup-system", "create-setup-system"]
+								},
+								{
+									"id": 2,
+									"name": "customer",
+									"title": "Customer",
+									"abilities": ["create-purchase"]
+								}
+							]
+						}
+						```
+
+						2.2 List Abilities
+						------------------
+						- **Method:** `GET`
+						- **URL:** `/api/admin/abilities`
+						- **Description:** Returns all predefined abilities that can be
+							attached to roles.
+
+						Response 200:
+
+						```json
+						{
+							"data": [
+								{
+									"id": 1,
+									"name": "create-purchase",
+									"title": "Create Purchases"
+								},
+								{
+									"id": 2,
+									"name": "read-setup-system",
+									"title": "Read Setup Data"
+								}
+							]
+						}
+						```
+
+						2.3 Create Role
+						---------------
+						- **Method:** `POST`
+						- **URL:** `/api/admin/roles`
+						- **Description:** Creates a new role using existing ability names.
+
+						Request body:
+
+						```json
+						{
+							"name": "customer-service",
+							"title": "Customer Service",
+							"abilities": ["read-purchases", "update-purchases"]
+						}
+						```
+
+						- `name`: required, unique role identifier.
+						- `title`: optional, display label.
+						- `abilities`: required non-empty array of existing ability names.
+
+						Response 201:
+
+						```json
+						{
+							"message": "Role created",
+							"data": {
+								"id": 5,
+								"name": "customer-service",
+								"title": "Customer Service",
+								"abilities": ["read-purchases", "update-purchases"]
+							}
+						}
+						```
+
+						2.4 Update Role
+						---------------
+						- **Method:** `PUT`
+						- **URL:** `/api/admin/roles/{id}`
+						- **Description:** Updates an existing role's title and replaces its
+							ability set.
+
+						Request body:
+
+						```json
+						{
+							"title": "Customer Support Specialist",
+							"abilities": ["read-purchases"]
+						}
+						```
+
+						- `title`: optional; when omitted, existing title is kept.
+						- `abilities`: required array; becomes the full, new set of abilities.
+
+						Response 200:
+
+						```json
+						{
+							"message": "Role updated",
+							"data": {
+								"id": 5,
+								"name": "customer-service",
+								"title": "Customer Support Specialist",
+								"abilities": ["read-purchases"]
+							}
+						}
+						```
+
+						--------------------------------------------------
+						3. Admin User Creation API
+						--------------------------------------------------
+
+						Endpoint to create backend users with multiple roles and a primary
+						role.
+
+						- **Method:** `POST`
+						- **URL:** `/api/admin/users`
+						- **Auth:** Bearer token for a `system-admin` user.
+
+						Request body example:
+
+						```json
+						{
+							"username": "jane.doe",
+							"email": "jane@example.com",
+							"password": "secret123",
+							"staff_id": 12,                       // optional, may be null
+							"roles": ["setup-admin", "customer-service"],
+							"primary_role": "setup-admin"       // must be one of roles[]
+						}
+						```
+
+						Validation rules (simplified):
+						- `username`: required, unique.
+						- `email`: required, unique, valid email.
+						- `password`: required, min length 8.
+						- `staff_id`: optional integer (can be wired to staff table later).
+						- `roles`: required array of role names, each must exist in `roles.name`.
+						- `primary_role`: required string, must be present in `roles` array.
+
+						Response 201:
+
+						```json
+						{
+							"message": "User created",
+							"data": {
+								"id": 10,
+								"username": "jane.doe",
+								"email": "jane@example.com",
+								"primary_role": {
+									"id": 3,
+									"name": "setup-admin",
+									"title": "Setup Admin"
+								}
+							}
+						}
+						```
+
+						Frontend usage:
+						- Use this endpoint to create staff/backend users.
+						- Provide a multi-select for `roles` using `/api/admin/roles` or
+							`/api/admin/abilities` as source.
+						- Inside that UI, let the user choose which selected role is the
+							`primary_role` (e.g. via radio button among the selected roles).
+
+						--------------------------------------------------
+						4. Quick Frontend Checklist
+						--------------------------------------------------
+
+						- After login:
+							- Store `access_token` + `refresh_token`.
+							- Read `primary_role`, `roles`, `permissions` from session object.
+						- For admin pages:
+							- Use `access_token` in all `/api/admin/*` requests.
+							- Use `/api/admin/abilities` to build ability selectors.
+							- Use `/api/admin/roles` for role listing and editing.
+							- Use `/api/admin/users` to create users with multiple roles and a
+								primary role.
 			{
 				"method": "GET",
-				"path": "/me",
-				"summary": "Return current authenticated user, roles and permissions.",
+				"path": "/purchase/lookups",
+				"summary": "Combined lookups for the purchase page (cylinder sizes, purchase kgs, delivery times).",
 				"auth": {"bearer": "access_token"},
 				"responses": {
 					"200": {
 						"body": {
-							"user": {"$ref": "User"},
-							"roles": {"type": "array", "items": {"type": "string"}},
-							"permissions": {"type": "object"}
-						}
-					},
-					"401": {"$ref": "UnauthorizedError"}
-				}
-			},
-			{
-				"method": "POST",
-				"path": "/logout",
-				"summary": "Revoke the current access token.",
-				"auth": {"bearer": "access_token"},
-				"responses": {
-					"200": {
-						"body": {"message": "Logged out successfully"}
-					},
-					"401": {"$ref": "UnauthorizedError"}
-				}
-			}
-		],
-		"samples": {
-			"register": {
-				"request": {
-					"username": "jdoe",
-					"email": "jdoe@example.com",
-					"password": "secretPass123"
-				},
-				"response": {
-					"status": 201,
-					"body": {
-						"user": {
-							"id": 1,
-							"username": "jdoe",
-							"email": "jdoe@example.com",
-							"active": true,
-							"email_verified_at": null,
-							"created_at": "2025-11-11T12:00:00Z",
-							"updated_at": "2025-11-11T12:00:00Z"
+							"data": {
+								"cylinder_sizes": {"type": "array", "items": {"$ref": "LookupItem"}},
+								"purchase_kgs": {"type": "array", "items": {"$ref": "LookupItem"}},
+								"delivery_times": {"type": "array", "items": {"$ref": "LookupItem"}}
+							},
+							"meta": {
+								"count": {
+									"cylinder_sizes": "integer",
+									"purchase_kgs": "integer",
+									"delivery_times": "integer"
+								}
+							}
 						}
 					}
 				}
-			},
-			"login": {
-				"request": {
-					"email": "jdoe@example.com",
-					"password": "secretPass123"
-				},
-				"response": {
-					"status": 200,
-					"body": {
-						"user": {"id": 1, "username": "jdoe", "email": "jdoe@example.com", "active": true, "email_verified_at": null, "created_at": "2025-11-11T12:00:00Z", "updated_at": "2025-11-11T12:00:00Z"},
-						"roles": ["customer"],
-						"permissions": {},
-						"access_token": "<access_token>",
-						"refresh_token": "<refresh_token>"
-					}
-				}
 			}
-		}
+		]
 	}
 }
+			
