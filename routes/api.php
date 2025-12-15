@@ -5,15 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\UserProfileController;
 use App\Http\Controllers\PurchaseController;
-use App\Http\Controllers\Setup\CylinderSizeController;
-use App\Http\Controllers\Setup\PurchaseKgController;
-use App\Http\Controllers\Setup\DeliveryTimeController;
-use App\Http\Controllers\Setup\ComplaintCategoryController;
-use App\Http\Controllers\Setup\DepartmentController;
-use App\Http\Controllers\Setup\DesignationController;
-use App\Http\Controllers\Setup\GenderController;
-use App\Http\Controllers\Setup\StatusController;
-use App\Http\Controllers\Setup\PaymentTypeController;
+use App\Http\Controllers\Setup\LookupController;
 use App\Http\Controllers\Backend\StaffController;
 use App\Http\Controllers\Backend\BackendUserController;
 use App\Http\Controllers\Backend\RoleAssignmentController;
@@ -21,6 +13,7 @@ use App\Http\Controllers\AdminRegistrationController;
 use App\Http\Controllers\PurchaseLookupController;
 use App\Http\Controllers\Admin\RoleController as AdminRoleController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
+use App\Services\LookupService;
 
 
 
@@ -67,88 +60,32 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/purchases/{purchase}', [PurchaseController::class, 'destroy'])
         ->middleware('can:delete-purchases');
 
-    // Setup-admin endpoints under /api/setup/{entity}
+    // Setup-admin endpoints - Generic lookup API under /api/setup/{type}
     Route::prefix('setup')->group(function () {
-        Route::get('/cylinder-sizes', [CylinderSizeController::class, 'index'])
-            ->middleware('role_or_perm:customer,read-setup-system');
-        Route::post('/cylinder-sizes', [CylinderSizeController::class, 'store'])
-            ->middleware('can:create-setup-system');
-        Route::put('/cylinder-sizes/{cylinder_size}', [CylinderSizeController::class, 'update'])
-            ->middleware('can:update-setup-system');
-        Route::delete('/cylinder-sizes/{cylinder_size}', [CylinderSizeController::class, 'destroy'])
-            ->middleware('can:delete-setup-system');
-
-        Route::get('/purchase-kgs', [PurchaseKgController::class, 'index'])
-            ->middleware('role_or_perm:customer,read-setup-system');
-        Route::post('/purchase-kgs', [PurchaseKgController::class, 'store'])
-            ->middleware('can:create-setup-system');
-        Route::put('/purchase-kgs/{purchase_kg}', [PurchaseKgController::class, 'update'])
-            ->middleware('can:update-setup-system');
-        Route::delete('/purchase-kgs/{purchase_kg}', [PurchaseKgController::class, 'destroy'])
-            ->middleware('can:delete-setup-system');
-
-        Route::get('/delivery-times', [DeliveryTimeController::class, 'index'])
-            ->middleware('role_or_perm:customer,read-setup-system');
-        Route::post('/delivery-times', [DeliveryTimeController::class, 'store'])
-            ->middleware('can:create-setup-system');
-        Route::put('/delivery-times/{delivery_time}', [DeliveryTimeController::class, 'update'])
-            ->middleware('can:update-setup-system');
-        Route::delete('/delivery-times/{delivery_time}', [DeliveryTimeController::class, 'destroy'])
-            ->middleware('can:delete-setup-system');
-
-        Route::get('/complaint-categories', [ComplaintCategoryController::class, 'index'])
+        // Get all available lookup types
+        Route::get('/types', [LookupController::class, 'types'])
             ->middleware('can:read-setup-system');
-        Route::post('/complaint-categories', [ComplaintCategoryController::class, 'store'])
-            ->middleware('can:create-setup-system');
-        Route::put('/complaint-categories/{complaint_category}', [ComplaintCategoryController::class, 'update'])
-            ->middleware('can:update-setup-system');
-        Route::delete('/complaint-categories/{complaint_category}', [ComplaintCategoryController::class, 'destroy'])
-            ->middleware('can:delete-setup-system');
 
-        Route::get('/departments', [DepartmentController::class, 'index'])
-            ->middleware('can:read-setup-system');
-        Route::post('/departments', [DepartmentController::class, 'store'])
-            ->middleware('can:create-setup-system');
-        Route::put('/departments/{department}', [DepartmentController::class, 'update'])
-            ->middleware('can:update-setup-system');
-        Route::delete('/departments/{department}', [DepartmentController::class, 'destroy'])
-            ->middleware('can:delete-setup-system');
+        // Generic lookup routes with dynamic middleware based on lookup type
+        Route::get('/{type}', [LookupController::class, 'index'])
+            ->middleware('role_or_perm:customer,read-setup-system')
+            ->where('type', implode('|', app(LookupService::class)->getAvailableTypes()));
 
-        Route::get('/designations', [DesignationController::class, 'index'])
-            ->middleware('can:read-setup-system');
-        Route::post('/designations', [DesignationController::class, 'store'])
-            ->middleware('can:create-setup-system');
-        Route::put('/designations/{designation}', [DesignationController::class, 'update'])
-            ->middleware('can:update-setup-system');
-        Route::delete('/designations/{designation}', [DesignationController::class, 'destroy'])
-            ->middleware('can:delete-setup-system');
+        Route::get('/{type}/{id}', [LookupController::class, 'show'])
+            ->middleware('can:read-setup-system')
+            ->where('type', implode('|', app(LookupService::class)->getAvailableTypes()));
 
-        Route::get('/payment-types', [PaymentTypeController::class, 'index'])
-            ->middleware('can:read-setup-system');
-        Route::post('/payment-types', [PaymentTypeController::class, 'store'])
-            ->middleware('can:create-setup-system');
-        Route::put('/payment-types/{payment_type}', [PaymentTypeController::class, 'update'])
-            ->middleware('can:update-setup-system');
-        Route::delete('/payment-types/{payment_type}', [PaymentTypeController::class, 'destroy'])
-            ->middleware('can:delete-setup-system');
+        Route::post('/{type}', [LookupController::class, 'store'])
+            ->middleware('can:create-setup-system')
+            ->where('type', implode('|', app(LookupService::class)->getAvailableTypes()));
 
-        Route::get('/genders', [GenderController::class, 'index'])
-            ->middleware('can:read-setup-system');
-        Route::post('/genders', [GenderController::class, 'store'])
-            ->middleware('can:create-setup-system');
-        Route::put('/genders/{gender}', [GenderController::class, 'update'])
-            ->middleware('can:update-setup-system');
-        Route::delete('/genders/{gender}', [GenderController::class, 'destroy'])
-            ->middleware('can:delete-setup-system');
+        Route::put('/{type}/{id}', [LookupController::class, 'update'])
+            ->middleware('can:update-setup-system')
+            ->where('type', implode('|', app(LookupService::class)->getAvailableTypes()));
 
-        Route::get('/statuses', [StatusController::class, 'index'])
-            ->middleware('can:read-setup-system');
-        Route::post('/statuses', [StatusController::class, 'store'])
-            ->middleware('can:create-setup-system');
-        Route::put('/statuses/{status}', [StatusController::class, 'update'])
-            ->middleware('can:update-setup-system');
-        Route::delete('/statuses/{status}', [StatusController::class, 'destroy'])
-            ->middleware('can:delete-setup-system');
+        Route::delete('/{type}/{id}', [LookupController::class, 'destroy'])
+            ->middleware('can:delete-setup-system')
+            ->where('type', implode('|', app(LookupService::class)->getAvailableTypes()));
     });
 
     // Setup admin module

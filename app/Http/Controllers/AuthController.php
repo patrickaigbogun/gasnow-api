@@ -36,10 +36,14 @@ class AuthController extends Controller
             'password' => ['required', 'string', 'min:8'],
         ]);
 
+        // Get the customer role id
+        $customerRole = Bouncer::role()->where('name', 'customer')->first();
+
         $user = User::create([
             'username' => $validated['username'],
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
+            'primary_role_id' => $customerRole ? $customerRole->id : null,
         ]);
 
         Bouncer::assign('customer')->to($user);
@@ -69,15 +73,24 @@ class AuthController extends Controller
             ]);
         }
 
+        // If primary_role_id is not set, set it to the customer role
+        if (is_null($user->primary_role_id)) {
+            $customerRole = Bouncer::role()->where('name', 'customer')->first();
+            if ($customerRole) {
+                $user->primary_role_id = $customerRole->id;
+                $user->save();
+            }
+        }
+
         $accessToken = $user->createToken('access-token', ['*'], now()->addDays(14));
         $refreshToken = $user->createToken('refresh-token', ['*'], now()->addDays(30));
 
-       $context = SessionContext::build($user);
+        $context = SessionContext::build($user);
 
-    return response()->json(array_merge($context, [
-        'access_token' => $accessToken->plainTextToken,
-        'refresh_token' => $refreshToken->plainTextToken,
-    ]));
+        return response()->json(array_merge($context, [
+            'access_token' => $accessToken->plainTextToken,
+            'refresh_token' => $refreshToken->plainTextToken,
+        ]));
     }
 
     /**
@@ -119,26 +132,20 @@ class AuthController extends Controller
      */
     public function me(Request $request): JsonResponse
     {
-        $token = $request->bearerToken();
-        if (! $token) {
-            return response()->json(['message' => 'Missing token'], 400);
+        $user = $request->user();
+        if (! $user) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
         }
-        $personalToken = PersonalAccessToken::findToken($token);
-        if (! $personalToken) {
-            return response()->json(['message' => 'Invalid token'], 401);
-        }
-        $user = $personalToken->tokenable;
 
         $context = SessionContext::build($user);
 
         $accessToken = $user->createToken('access-token', ['*'], now()->addDays(14));
         $refreshToken = $user->createToken('refresh-token', ['*'], now()->addDays(30));
 
-
-    return response()->json(array_merge($context, [
-        'access_token' => $accessToken->plainTextToken,
-        'refresh_token' => $refreshToken->plainTextToken,
-    ]));
+        return response()->json(array_merge($context, [
+            'access_token' => $accessToken->plainTextToken,
+            'refresh_token' => $refreshToken->plainTextToken,
+        ]));
     }
 
     /**

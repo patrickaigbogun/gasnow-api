@@ -14,14 +14,13 @@ class PurchaseLookupController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        if(!auth()->$user){
-            return response()->json(['message' => 'Unauthenticated'], 401);
-        }
+       
 
+        // Use the public lookup types for purchase page
         $data = $this->lookups->getMany([
-            'cylinder_sizes',
-            'purchase_kgs',
-            'delivery_times',
+            'cylinder-sizes',
+            'purchase-kgs',
+            'delivery-times',
         ]);
 
         return response()->json([
